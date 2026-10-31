@@ -1,0 +1,21 @@
+:root { --bg:#e9efe6; --card:#f7faf5; --ink:#1f2a24; --mute:#5d6b62; --green:#2f6b4f; --pink:#d4476f; --line:#cdd8c9; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:400 16px/1.5 Inter, system-ui, sans-serif; }
+main { max-width:680px; margin:0 auto; padding:24px 16px 64px; }
+header { display:flex; justify-content:space-between; align-items:center; }
+h1,h2,h3 { font-family:"Bricolage Grotesque", Inter, sans-serif; margin:0; }
+h1 { font-size:2.4rem; } h2 { font-size:1.3rem; margin:32px 0 12px; } h3 { font-size:1rem; margin:16px 0 4px; color:var(--mute); }
+section.totals { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-top:16px; }
+.stat { margin-bottom:12px; } .row { display:flex; justify-content:space-between; }
+.bar { height:10px; background:var(--line); border-radius:5px; overflow:hidden; }
+.bar i { display:block; height:100%; background:var(--green); } .bar i.over { background:var(--pink); } .over { color:var(--pink); }
+.controls { display:flex; gap:8px; flex-wrap:wrap; } .controls input:first-child { flex:1 1 220px; } .controls input[type=number] { width:80px; }
+input, select, button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+button { background:var(--green); color:#fff; border-color:var(--green); cursor:pointer; white-space:nowrap; }
+button.ghost { background:none; color:var(--mute); border-color:var(--line); }
+:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.list { list-style:none; padding:0; margin:8px 0; }
+.list li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.list small { display:block; color:var(--mute); } .note { color:var(--mute); }
+.goals { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-top:8px; } .goals label { display:grid; gap:4px; font-size:.9rem; }
+summary { cursor:pointer; color:var(--mute); }
