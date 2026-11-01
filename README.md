@@ -1,4 +1,4 @@
-# Tally
+# not myfitness pal
 
 A small calorie and macro tracker. React + TypeScript + Vite.
 

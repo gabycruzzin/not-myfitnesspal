@@ -1,8 +1,18 @@
-import { useEffect, useState } from "react";
-import { searchFoods, type Food, type Macros } from "./api";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { searchFoods, type Food, type Macros, type Serving } from "./api";
 
-type Entry = Macros & { id: string; name: string; grams: number; meal: string };
+// grams is the logged amount in `unit` (g, or ml for drinks); older entries have no unit and are grams.
+type Entry = Macros & { id: string; name: string; grams: number; unit?: string; servings?: number; meal: string };
 const MEALS = ["Breakfast", "Lunch", "Dinner", "Snacks"];
+const SERVING_STEP = 0.5;
+const roundToStep = (n: number) => Math.max(SERVING_STEP, Math.round(n / SERVING_STEP) * SERVING_STEP);
+const servingLabel = (n: number) => `${n} serving${n === 1 ? "" : "s"}`;
+// Foods without a listed serving size use the size you set for them (remembered by food), or 100 g.
+const servingOf = (f: Food, custom: Record<string, number>): Serving => {
+  if (f.serving) return f.serving;
+  const amount = custom[f.id] ?? 100;
+  return { amount, unit: "g", label: `${amount} g` };
+};
 const DEFAULT_GOALS: Macros = { kcal: 2000, protein: 150, carbs: 200, fat: 65 };
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
 
@@ -30,27 +40,29 @@ export default function App() {
   const [date, setDate] = useState(today());
   const [diary, setDiary] = useStored<Record<string, Entry[]>>("diary", {});
   const [goals, setGoals] = useStored<Macros>("goals", DEFAULT_GOALS);
+  const [customServings, setCustomServings] = useStored<Record<string, number>>("customServings", {});
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Food[]>([]);
   const [status, setStatus] = useState("");
-  const [grams, setGrams] = useState(100);
+  const [servings, setServings] = useState(1);
   const [meal, setMeal] = useState(MEALS[0]);
+  const searchCtrl = useRef<AbortController>();
 
-  useEffect(() => {
-    if (query.trim().length < 2) return setResults([]);
-    const ctrl = new AbortController();
-    const t = setTimeout(async () => {
-      setStatus("Searching…");
-      try {
-        const foods = await searchFoods(query.trim(), ctrl.signal);
-        setResults(foods);
-        setStatus(foods.length ? "" : "No foods found. Try a simpler name.");
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") setStatus("Search failed. Check your connection and try again.");
-      }
-    }, 400);
-    return () => { clearTimeout(t); ctrl.abort(); };
-  }, [query]);
+  const runSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (q.length < 2) return setStatus("Type at least 2 letters to search.");
+    searchCtrl.current?.abort();
+    const ctrl = (searchCtrl.current = new AbortController());
+    setStatus("Searching…");
+    try {
+      const foods = await searchFoods(q, ctrl.signal);
+      setResults(foods);
+      setStatus(foods.length ? "" : "No foods found. Try a simpler name.");
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") setStatus("Search failed. Check your connection and try again.");
+    }
+  };
 
   const entries = diary[date] ?? [];
   const total = entries.reduce<Macros>(
@@ -59,7 +71,9 @@ export default function App() {
   );
 
   const add = (f: Food) => {
-    const entry: Entry = { id: crypto.randomUUID(), name: f.name, grams, meal, ...scale(f.per100g, grams) };
+    const { amount, unit } = servingOf(f, customServings);
+    const grams = Math.round(servings * amount);
+    const entry: Entry = { id: crypto.randomUUID(), name: f.name, grams, unit, servings, meal, ...scale(f.per100g, grams) };
     setDiary({ ...diary, [date]: [...entries, entry] });
   };
   const remove = (id: string) => setDiary({ ...diary, [date]: entries.filter((e) => e.id !== id) });
@@ -71,7 +85,7 @@ export default function App() {
   return (
     <main>
       <header>
-        <h1>Tally</h1>
+        <h1>not <em>myfitness</em> pal</h1>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Diary date" />
       </header>
 
@@ -99,22 +113,44 @@ export default function App() {
 
       <section>
         <h2>Add food</h2>
-        <div className="controls">
-          <input placeholder="Search foods, e.g. greek yogurt" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <input type="number" min={1} value={grams} onChange={(e) => setGrams(Number(e.target.value) || 1)} aria-label="Grams" title="Grams" />
+        <form className="controls" onSubmit={runSearch} role="search">
+          <input placeholder="Search foods, e.g. greek yogurt" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search foods" />
+          <button type="submit">Search</button>
+        </form>
+        <div className="controls amount">
+          <div className="stepper">
+            <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings - SERVING_STEP))} disabled={servings <= SERVING_STEP} aria-label="Fewer servings">−</button>
+            <input type="number" min={SERVING_STEP} step={SERVING_STEP} value={servings} onChange={(e) => setServings(Number(e.target.value) || SERVING_STEP)} onBlur={() => setServings(roundToStep(servings))} aria-label="Servings" />
+            <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings + SERVING_STEP))} aria-label="More servings">+</button>
+          </div>
+          <span>{servings === 1 ? "serving" : "servings"}</span>
           <select value={meal} onChange={(e) => setMeal(e.target.value)} aria-label="Meal">
             {MEALS.map((m) => <option key={m}>{m}</option>)}
           </select>
         </div>
         {status && <p className="note">{status}</p>}
         <ul className="list">
-          {results.map((f) => (
-            <li key={f.id}>
-              <div><b>{f.name}</b>{f.brand && <small> {f.brand}</small>}
-                <small>{Math.round(f.per100g.kcal)} kcal per 100 g, {f.per100g.protein}p {f.per100g.carbs}c {f.per100g.fat}f</small></div>
-              <button onClick={() => add(f)}>Add {grams} g</button>
-            </li>
-          ))}
+          {results.map((f) => {
+            const s = servingOf(f, customServings);
+            const per = scale(f.per100g, s.amount);
+            return (
+              <li key={f.id}>
+                <div><b>{f.name}</b>{f.brand && <small> {f.brand}</small>}
+                  {f.serving ? (
+                    <small className="serving">1 serving = {s.label}</small>
+                  ) : (
+                    <small className="serving">
+                      1 serving ={" "}
+                      <input className="inline" type="number" min={1} value={s.amount} aria-label={`Serving size in grams for ${f.name}`}
+                        onChange={(e) => setCustomServings({ ...customServings, [f.id]: Math.max(1, Number(e.target.value) || 1) })} />{" "}
+                      g <span className="hint">(none listed, set your own)</span>
+                    </small>
+                  )}
+                  <small>{per.kcal} kcal per serving, {per.protein}p {per.carbs}c {per.fat}f</small></div>
+                <button onClick={() => add(f)}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -130,7 +166,7 @@ export default function App() {
               <ul className="list">
                 {items.map((e) => (
                   <li key={e.id}>
-                    <div><b>{e.name}</b><small>{e.grams} g, {e.kcal} kcal, {e.protein}p {e.carbs}c {e.fat}f</small></div>
+                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit ?? "g"})` : `${e.grams} g`}, {e.kcal} kcal, {e.protein}p {e.carbs}c {e.fat}f</small></div>
                     <button className="ghost" onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}>Remove</button>
                   </li>
                 ))}
