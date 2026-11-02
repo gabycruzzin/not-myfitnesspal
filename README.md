@@ -1,6 +1,6 @@
-# not myfitness pal
+# Not MyFitnessPal
 
-A small calorie and macro tracker. React + TypeScript + Vite.
+A small calorie and macro tracker with no ads, no paywall and no guilt trips. React + TypeScript + Vite.
 
 ## Set up the database (once)
 Diary entries, goals and custom serving sizes are saved in [Supabase](https://supabase.com) (Postgres + sign-in).

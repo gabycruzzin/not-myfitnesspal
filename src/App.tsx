@@ -26,7 +26,15 @@ const scale = (m: Macros, grams: number): Macros => ({
   fat: Math.round((m.fat * grams) / 10) / 10,
 });
 
-const Title = () => <h1>not <em>myfitness</em> pal</h1>;
+const Title = () => <h1><em>Not</em> MyFitnessPal</h1>;
+
+// Macro numbers in each nutrient's color, e.g. "90 kcal, 16p 6c 0f".
+const MacroText = ({ m, kcalLabel = "kcal" }: { m: Macros; kcalLabel?: string }) => (
+  <>
+    <span className="m-kcal">{m.kcal} {kcalLabel}</span>,{" "}
+    <span className="m-protein">{m.protein}p</span> <span className="m-carbs">{m.carbs}c</span> <span className="m-fat">{m.fat}f</span>
+  </>
+);
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -158,7 +166,7 @@ function Tracker({ session }: { session: Session }) {
         {bars.map(([label, k, unit]) => {
           const over = total[k] > goals[k];
           return (
-            <div key={k} className="stat">
+            <div key={k} className="stat" data-k={k}>
               <div className="row"><b>{label}</b><span className={over ? "over" : ""}>{Math.round(total[k])} / {goals[k]} {unit}</span></div>
               <div className="bar"><i className={over ? "over" : ""} style={{ width: `${Math.min(100, (total[k] / goals[k]) * 100)}%` }} /></div>
             </div>
@@ -212,7 +220,7 @@ function Tracker({ session }: { session: Session }) {
                       g <span className="hint">(none listed, set your own)</span>
                     </small>
                   )}
-                  <small>{per.kcal} kcal per serving, {per.protein}p {per.carbs}c {per.fat}f</small></div>
+                  <small><MacroText m={per} kcalLabel="kcal per serving" /></small></div>
                 <button onClick={() => add(f)} disabled={!ready}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
               </li>
             );
@@ -228,11 +236,11 @@ function Tracker({ session }: { session: Session }) {
           if (!items.length) return null;
           return (
             <div key={m}>
-              <h3>{m}</h3>
+              <h3 className={`meal meal-${m.toLowerCase()}`}>{m}</h3>
               <ul className="list">
                 {items.map((e) => (
                   <li key={e.id}>
-                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit})` : `${e.grams} ${e.unit}`}, {e.kcal} kcal, {e.protein}p {e.carbs}c {e.fat}f</small></div>
+                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit})` : `${e.grams} ${e.unit}`}, <MacroText m={e} /></small></div>
                     <button className="ghost" onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}>Remove</button>
                   </li>
                 ))}
