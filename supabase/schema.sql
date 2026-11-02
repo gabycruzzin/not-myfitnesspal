@@ -1,0 +1,54 @@
+-- Run this once in your Supabase project: Dashboard → SQL Editor → New query → paste → Run.
+-- Every table is locked down with row level security, so a signed-in user can only see and change their own rows.
+
+-- One row per food logged.
+create table if not exists public.diary_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  day date not null,
+  meal text not null check (meal in ('Breakfast', 'Lunch', 'Dinner', 'Snacks')),
+  name text not null,
+  grams numeric not null check (grams > 0),   -- amount logged, in `unit`
+  unit text not null default 'g',              -- 'g', or 'ml' for drinks
+  servings numeric,                            -- null for entries logged by weight only
+  kcal numeric not null default 0,
+  protein numeric not null default 0,
+  carbs numeric not null default 0,
+  fat numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists diary_entries_user_day on public.diary_entries (user_id, day);
+
+-- Daily calorie and macro goals, one row per user.
+create table if not exists public.goals (
+  user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  kcal numeric not null default 2000,
+  protein numeric not null default 150,
+  carbs numeric not null default 200,
+  fat numeric not null default 65,
+  updated_at timestamptz not null default now()
+);
+
+-- Serving sizes a user set for foods that don't list one, keyed by Open Food Facts product code.
+create table if not exists public.custom_servings (
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  food_id text not null,
+  grams numeric not null check (grams > 0),
+  primary key (user_id, food_id)
+);
+
+alter table public.diary_entries enable row level security;
+alter table public.goals enable row level security;
+alter table public.custom_servings enable row level security;
+
+drop policy if exists "own diary entries" on public.diary_entries;
+create policy "own diary entries" on public.diary_entries
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "own goals" on public.goals;
+create policy "own goals" on public.goals
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists "own custom servings" on public.custom_servings;
+create policy "own custom servings" on public.custom_servings
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

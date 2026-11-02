@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { searchFoods, type Food, type Macros, type Serving } from "./api";
+import {
+  supabase, DEFAULT_GOALS, type Entry,
+  loadDay, addEntry, removeEntry, loadGoals, saveGoals, loadCustomServings, saveCustomServing, importLocalData,
+} from "./db";
+import SignIn from "./SignIn";
 
-// grams is the logged amount in `unit` (g, or ml for drinks); older entries have no unit and are grams.
-type Entry = Macros & { id: string; name: string; grams: number; unit?: string; servings?: number; meal: string };
 const MEALS = ["Breakfast", "Lunch", "Dinner", "Snacks"];
 const SERVING_STEP = 0.5;
 const roundToStep = (n: number) => Math.max(SERVING_STEP, Math.round(n / SERVING_STEP) * SERVING_STEP);
@@ -13,21 +17,7 @@ const servingOf = (f: Food, custom: Record<string, number>): Serving => {
   const amount = custom[f.id] ?? 100;
   return { amount, unit: "g", label: `${amount} g` };
 };
-const DEFAULT_GOALS: Macros = { kcal: 2000, protein: 150, carbs: 200, fat: 65 };
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
-
-function useStored<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : initial;
-    } catch {
-      return initial;
-    }
-  });
-  useEffect(() => localStorage.setItem(key, JSON.stringify(value)), [key, value]);
-  return [value, setValue] as const;
-}
 
 const scale = (m: Macros, grams: number): Macros => ({
   kcal: Math.round((m.kcal * grams) / 100),
@@ -36,17 +26,76 @@ const scale = (m: Macros, grams: number): Macros => ({
   fat: Math.round((m.fat * grams) / 10) / 10,
 });
 
+const Title = () => <h1>not <em>myfitness</em> pal</h1>;
+
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setChecked(true); });
+    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  if (!supabase) {
+    return (
+      <main>
+        <header><Title /></header>
+        <section className="auth">
+          <h2>Connect a database</h2>
+          <p className="note">
+            Diary entries are saved in Supabase. Copy <code>.env.example</code> to <code>.env.local</code>, fill in your
+            project's URL and anon key, then restart the dev server. Setup steps are in the README.
+          </p>
+        </section>
+      </main>
+    );
+  }
+  if (!checked) return <main><header><Title /></header><p className="note">Loading…</p></main>;
+  if (!session) return <main><header><Title /></header><SignIn /></main>;
+  return <Tracker session={session} />;
+}
+
+function Tracker({ session }: { session: Session }) {
   const [date, setDate] = useState(today());
-  const [diary, setDiary] = useStored<Record<string, Entry[]>>("diary", {});
-  const [goals, setGoals] = useStored<Macros>("goals", DEFAULT_GOALS);
-  const [customServings, setCustomServings] = useStored<Record<string, number>>("customServings", {});
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [goals, setGoals] = useState<Macros>(DEFAULT_GOALS);
+  const [customServings, setCustomServings] = useState<Record<string, number>>({});
+  const [ready, setReady] = useState(false);
+  const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Food[]>([]);
   const [status, setStatus] = useState("");
   const [servings, setServings] = useState(1);
   const [meal, setMeal] = useState(MEALS[0]);
   const searchCtrl = useRef<AbortController>();
+  const goalsTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const fail = (what: string) => (e: unknown) => {
+    console.error(e);
+    setNotice(`Couldn't ${what}. Check your connection and try again.`);
+  };
+
+  // On sign-in: bring over anything saved in this browser before accounts existed, then load goals and serving sizes.
+  useEffect(() => {
+    (async () => {
+      const imported = await importLocalData();
+      if (imported) setNotice(`Imported ${imported} diary ${imported === 1 ? "entry" : "entries"} saved in this browser.`);
+      const [g, c] = await Promise.all([loadGoals(), loadCustomServings()]);
+      setGoals(g);
+      setCustomServings(c);
+      setReady(true);
+    })().catch(fail("load your account"));
+  }, [session.user.id]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let current = true;
+    loadDay(date).then((rows) => current && setEntries(rows)).catch(fail("load this day's diary"));
+    return () => { current = false; };
+  }, [date, ready]);
 
   const runSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -64,7 +113,6 @@ export default function App() {
     }
   };
 
-  const entries = diary[date] ?? [];
   const total = entries.reduce<Macros>(
     (a, e) => ({ kcal: a.kcal + e.kcal, protein: a.protein + e.protein, carbs: a.carbs + e.carbs, fat: a.fat + e.fat }),
     { kcal: 0, protein: 0, carbs: 0, fat: 0 },
@@ -73,10 +121,23 @@ export default function App() {
   const add = (f: Food) => {
     const { amount, unit } = servingOf(f, customServings);
     const grams = Math.round(servings * amount);
-    const entry: Entry = { id: crypto.randomUUID(), name: f.name, grams, unit, servings, meal, ...scale(f.per100g, grams) };
-    setDiary({ ...diary, [date]: [...entries, entry] });
+    const day = date;
+    addEntry(day, { name: f.name, grams, unit, servings, meal, ...scale(f.per100g, grams) })
+      .then((saved) => { if (day === date) setEntries((list) => [...list, saved]); })
+      .catch(fail(`add ${f.name}`));
   };
-  const remove = (id: string) => setDiary({ ...diary, [date]: entries.filter((e) => e.id !== id) });
+  const remove = (id: string) => {
+    const before = entries;
+    setEntries(entries.filter((e) => e.id !== id));
+    removeEntry(id).catch((e) => { setEntries(before); fail("remove that entry")(e); });
+  };
+  // Goals save shortly after you stop typing, so each keystroke isn't a write.
+  const changeGoal = (k: keyof Macros, value: number) => {
+    const next = { ...goals, [k]: value };
+    setGoals(next);
+    clearTimeout(goalsTimer.current);
+    goalsTimer.current = setTimeout(() => saveGoals(next).catch(fail("save your goals")), 600);
+  };
 
   const bars: [string, keyof Macros, string][] = [
     ["Calories", "kcal", "kcal"], ["Protein", "protein", "g"], ["Carbs", "carbs", "g"], ["Fat", "fat", "g"],
@@ -85,9 +146,13 @@ export default function App() {
   return (
     <main>
       <header>
-        <h1>not <em>myfitness</em> pal</h1>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Diary date" />
+        <Title />
+        <div className="header-actions">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value || today())} aria-label="Diary date" />
+          <button className="link" onClick={() => supabase!.auth.signOut()} title={session.user.email}>Sign out</button>
+        </div>
       </header>
+      {notice && <p className="note notice" role="status">{notice} <button className="link" onClick={() => setNotice("")}>Dismiss</button></p>}
 
       <section className="totals">
         {bars.map(([label, k, unit]) => {
@@ -104,7 +169,7 @@ export default function App() {
           <div className="goals">
             {bars.map(([label, k]) => (
               <label key={k}>{label}
-                <input type="number" min={0} value={goals[k]} onChange={(e) => setGoals({ ...goals, [k]: Number(e.target.value) })} />
+                <input type="number" min={0} value={goals[k]} onChange={(e) => changeGoal(k, Number(e.target.value))} />
               </label>
             ))}
           </div>
@@ -142,12 +207,13 @@ export default function App() {
                     <small className="serving">
                       1 serving ={" "}
                       <input className="inline" type="number" min={1} value={s.amount} aria-label={`Serving size in grams for ${f.name}`}
-                        onChange={(e) => setCustomServings({ ...customServings, [f.id]: Math.max(1, Number(e.target.value) || 1) })} />{" "}
+                        onChange={(e) => setCustomServings({ ...customServings, [f.id]: Math.max(1, Number(e.target.value) || 1) })}
+                        onBlur={() => saveCustomServing(f.id, s.amount).catch(fail("save that serving size"))} />{" "}
                       g <span className="hint">(none listed, set your own)</span>
                     </small>
                   )}
                   <small>{per.kcal} kcal per serving, {per.protein}p {per.carbs}c {per.fat}f</small></div>
-                <button onClick={() => add(f)}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
+                <button onClick={() => add(f)} disabled={!ready}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
               </li>
             );
           })}
@@ -156,7 +222,7 @@ export default function App() {
 
       <section>
         <h2>Diary</h2>
-        {entries.length === 0 && <p className="note">Nothing logged yet. Search for a food above to add it.</p>}
+        {ready && entries.length === 0 && <p className="note">Nothing logged yet. Search for a food above to add it.</p>}
         {MEALS.map((m) => {
           const items = entries.filter((e) => e.meal === m);
           if (!items.length) return null;
@@ -166,7 +232,7 @@ export default function App() {
               <ul className="list">
                 {items.map((e) => (
                   <li key={e.id}>
-                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit ?? "g"})` : `${e.grams} g`}, {e.kcal} kcal, {e.protein}p {e.carbs}c {e.fat}f</small></div>
+                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit})` : `${e.grams} ${e.unit}`}, {e.kcal} kcal, {e.protein}p {e.carbs}c {e.fat}f</small></div>
                     <button className="ghost" onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}>Remove</button>
                   </li>
                 ))}

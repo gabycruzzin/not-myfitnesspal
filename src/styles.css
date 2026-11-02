@@ -36,3 +36,11 @@ button:disabled { opacity:.4; cursor:default; }
 .list input.inline { width:64px; padding:2px 8px; font-size:.85rem; text-align:center; } .list .hint { color:var(--mute); } .note { color:var(--mute); }
 .goals { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-top:10px; } .goals label { display:grid; gap:4px; font-size:.9rem; color:var(--mute); }
 summary { cursor:pointer; color:var(--accent); font-size:.9rem; }
+.header-actions { display:flex; align-items:center; gap:8px; }
+button.link { background:none; border:0; padding:4px 2px; color:var(--accent); text-decoration:underline; text-underline-offset:3px; font-weight:400; }
+button.link:hover:not(:disabled) { background:none; color:var(--accent-dark); }
+.notice { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-top:16px; }
+.auth { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:24px; margin-top:20px; max-width:420px; }
+.auth h2 { margin:0 0 4px; }
+.auth form { display:grid; gap:12px; margin:16px 0 8px; } .auth label { display:grid; gap:4px; font-size:.9rem; color:var(--mute); }
+code { font-size:.9em; background:var(--track); padding:1px 5px; border-radius:4px; }
