@@ -117,3 +117,9 @@ button.add { margin-top:8px; width:100%; }
 .sheet-head h2 { margin:0; } .sheet-head .link { font-size:.95rem; color:var(--ink); }
 @keyframes slide-up { from { transform:translateY(100%); } } @keyframes fade { from { opacity:0; } }
 @media (prefers-reduced-motion:reduce) { .sheet, .sheet-backdrop { animation:none; } }
+/* Account footer, with a two-step confirm before deleting. */
+footer.account { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); }
+footer.account .note { margin:0 0 6px; font-size:.85rem; } footer.account > .link { font-size:.85rem; text-transform:lowercase; }
+.confirm-delete { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+.confirm-delete p { margin:0 0 12px; }
+button.danger { background:#8f3b30; border-color:#8f3b30; } button.danger:hover:not(:disabled) { background:#76302a; border-color:#76302a; }

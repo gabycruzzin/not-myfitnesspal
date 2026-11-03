@@ -4,7 +4,7 @@ import type { Macros } from "./api";
 import {
   supabase, DEFAULT_GOALS, NEW_PROFILE, type Entry, type NewEntry, type Profile,
   loadDay, addEntry, removeEntry, countEntries, loadGoals, saveGoals, loadProfile, saveProfile,
-  loadCustomServings, saveCustomServing, importLocalData,
+  loadCustomServings, saveCustomServing, importLocalData, deleteAccount,
 } from "./db";
 import AddSheet from "./AddSheet";
 import { MEALS, MacroText, servingLabel, sumMacros } from "./FoodSearch";
@@ -69,6 +69,8 @@ function Tracker({ session }: { session: Session }) {
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState("");
   const [addingTo, setAddingTo] = useState<string | null>(null); // meal whose add sheet is open
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const closeSheet = useCallback(() => setAddingTo(null), []);
   const goalsTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -253,6 +255,23 @@ function Tracker({ session }: { session: Session }) {
           );
         })}
       </section>
+      <footer className="account">
+        <p className="note">Signed in as {session.user.email}</p>
+        {confirmDelete ? (
+          <div className="confirm-delete" role="alert">
+            <p>This permanently deletes your account, diary, goals and setup. It can't be undone.</p>
+            <div className="controls">
+              <button className="danger" disabled={deleting} onClick={() => {
+                setDeleting(true);
+                deleteAccount().catch((e) => { setDeleting(false); setConfirmDelete(false); fail("delete your account")(e); });
+              }}>{deleting ? "Deleting…" : "Delete forever"}</button>
+              <button className="ghost" disabled={deleting} onClick={() => setConfirmDelete(false)}>Keep my account</button>
+            </div>
+          </div>
+        ) : (
+          <button className="link" onClick={() => setConfirmDelete(true)}>delete account</button>
+        )}
+      </footer>
       {addingTo && (
         <AddSheet meal={addingTo} customServings={customServings} onCustomServing={changeCustomServing}
           onAdd={add} onClose={closeSheet} disabled={!ready} />

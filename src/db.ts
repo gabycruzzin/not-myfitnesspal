@@ -90,6 +90,13 @@ export async function saveProfile(p: Profile) {
   if (error) throw error;
 }
 
+// Permanently deletes the signed-in user and all their data (see delete_my_account in supabase/schema.sql), then signs out.
+export async function deleteAccount() {
+  const { error } = await db().rpc("delete_my_account");
+  if (error) throw error;
+  await db().auth.signOut();
+}
+
 export async function loadCustomServings(): Promise<Record<string, number>> {
   const { data, error } = await db().from("custom_servings").select("food_id, grams");
   if (error) throw error;
