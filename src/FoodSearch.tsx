@@ -37,18 +37,26 @@ type Props = {
   customServings: Record<string, number>;
   onCustomServing: (foodId: string, grams: number, save: boolean) => void;
   onAdd: (entry: NewEntry) => void;
+  // When set, foods go to this meal; otherwise a meal picker shows next to the servings.
+  meal?: string;
   disabled?: boolean;
   placeholder?: string;
+  autoFocus?: boolean;
 };
 
-// Search box, servings stepper, meal picker and results. Used by the diary and by setup's typical day.
-export default function FoodSearch({ customServings, onCustomServing, onAdd, disabled, placeholder = "Search foods, e.g. greek yogurt" }: Props) {
+// Search box with compact results: tap a food to see its serving size, pick servings and add it.
+// Used by the diary's add sheet and by setup's typical day.
+export default function FoodSearch({
+  customServings, onCustomServing, onAdd, meal: fixedMeal, disabled, placeholder = "Search foods, e.g. greek yogurt", autoFocus,
+}: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Food[]>([]);
   const [status, setStatus] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
   const [servings, setServings] = useState(1);
-  const [meal, setMeal] = useState(MEALS[0]);
+  const [pickedMeal, setPickedMeal] = useState(MEALS[0]);
   const searchCtrl = useRef<AbortController>();
+  const meal = fixedMeal ?? pickedMeal;
 
   const runSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,6 +66,7 @@ export default function FoodSearch({ customServings, onCustomServing, onAdd, dis
     searchCtrl.current?.abort();
     const ctrl = (searchCtrl.current = new AbortController());
     setStatus("Searching…");
+    setSelected(null);
     try {
       const foods = await searchFoods(q, ctrl.signal);
       if (ctrl.signal.aborted) return; // a newer search started (the app's native networking ignores aborts)
@@ -68,50 +77,70 @@ export default function FoodSearch({ customServings, onCustomServing, onAdd, dis
     }
   };
 
+  const toggle = (id: string) => {
+    setSelected(selected === id ? null : id);
+    setServings(1);
+  };
+
   const add = (f: Food) => {
     const { amount, unit } = servingOf(f, customServings);
     const grams = Math.round(servings * amount);
     onAdd({ name: f.name, grams, unit, servings, meal, ...scale(f.per100g, grams) });
+    setSelected(null);
+    setStatus(`Added ${f.name} to ${meal.toLowerCase()}.`);
   };
 
   return (
     <>
       <form className="controls" onSubmit={runSearch} role="search">
-        <input placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search foods" />
+        <input placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search foods"
+          autoFocus={autoFocus} enterKeyHint="search" />
         <button type="submit">Search</button>
       </form>
-      <div className="controls amount">
-        <div className="stepper">
-          <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings - SERVING_STEP))} disabled={servings <= SERVING_STEP} aria-label="Fewer servings">−</button>
-          <input type="number" min={SERVING_STEP} step={SERVING_STEP} value={servings} onChange={(e) => setServings(Number(e.target.value) || SERVING_STEP)} onBlur={() => setServings(roundToStep(servings))} aria-label="Servings" />
-          <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings + SERVING_STEP))} aria-label="More servings">+</button>
-        </div>
-        <span>{servings === 1 ? "serving" : "servings"}</span>
-        <select value={meal} onChange={(e) => setMeal(e.target.value)} aria-label="Meal">
-          {MEALS.map((m) => <option key={m}>{m}</option>)}
-        </select>
-      </div>
-      {status && <p className="note">{status}</p>}
-      <ul className="list">
+      {status && <p className="note" role="status">{status}</p>}
+      <ul className="results">
         {results.map((f) => {
           const s = servingOf(f, customServings);
           const per = scale(f.per100g, s.amount);
+          const open = selected === f.id;
           return (
-            <li key={f.id}>
-              <div><b>{f.name}</b>{f.brand && <small> {f.brand}</small>}
-                {f.serving ? (
-                  <small className="serving">1 serving = {s.label}</small>
-                ) : (
-                  <small className="serving">
-                    1 serving ={" "}
-                    <input className="inline" type="number" min={1} value={s.amount} aria-label={`Serving size in grams for ${f.name}`}
-                      onChange={(e) => onCustomServing(f.id, Math.max(1, Number(e.target.value) || 1), false)}
-                      onBlur={() => onCustomServing(f.id, s.amount, true)} />{" "}
-                    g <span className="hint">(none listed, set your own)</span>
-                  </small>
-                )}
-                <small><MacroText m={per} kcalLabel="kcal per serving" /></small></div>
-              <button onClick={() => add(f)} disabled={disabled}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
+            <li key={f.id} className={open ? "open" : ""}>
+              <button type="button" className="result" onClick={() => toggle(f.id)} aria-expanded={open}>
+                <span className="result-name"><b>{f.name}</b>{f.brand && <small>{f.brand}</small>}</span>
+                <span className="result-kcal">{per.kcal} kcal</span>
+              </button>
+              {open && (
+                <div className="result-detail">
+                  {f.serving ? (
+                    <small className="serving">1 serving = {s.label}</small>
+                  ) : (
+                    <small className="serving">
+                      1 serving ={" "}
+                      <input className="inline" type="number" min={1} value={s.amount} aria-label={`Serving size in grams for ${f.name}`}
+                        onChange={(e) => onCustomServing(f.id, Math.max(1, Number(e.target.value) || 1), false)}
+                        onBlur={() => onCustomServing(f.id, s.amount, true)} />{" "}
+                      g <span className="hint">(none listed, set your own)</span>
+                    </small>
+                  )}
+                  <small><MacroText m={per} kcalLabel="kcal per serving" /></small>
+                  <div className="controls amount">
+                    <div className="stepper">
+                      <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings - SERVING_STEP))} disabled={servings <= SERVING_STEP} aria-label="Fewer servings">−</button>
+                      <input type="number" min={SERVING_STEP} step={SERVING_STEP} value={servings} onChange={(e) => setServings(Number(e.target.value) || SERVING_STEP)} onBlur={() => setServings(roundToStep(servings))} aria-label="Servings" />
+                      <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings + SERVING_STEP))} aria-label="More servings">+</button>
+                    </div>
+                    <span>{servings === 1 ? "serving" : "servings"}</span>
+                    {!fixedMeal && (
+                      <select value={pickedMeal} onChange={(e) => setPickedMeal(e.target.value)} aria-label="Meal">
+                        {MEALS.map((m) => <option key={m}>{m}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <button className="add" onClick={() => add(f)} disabled={disabled}>
+                    Add {servings} ({Math.round(servings * s.amount)} {s.unit}) · {Math.round((per.kcal * servings))} kcal
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}

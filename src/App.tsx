@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { Macros } from "./api";
 import {
@@ -6,7 +6,8 @@ import {
   loadDay, addEntry, removeEntry, countEntries, loadGoals, saveGoals, loadProfile, saveProfile,
   loadCustomServings, saveCustomServing, importLocalData,
 } from "./db";
-import FoodSearch, { MEALS, MacroText, servingLabel, sumMacros } from "./FoodSearch";
+import AddSheet from "./AddSheet";
+import { MEALS, MacroText, servingLabel, sumMacros } from "./FoodSearch";
 import Setup, { type SetupStep } from "./Setup";
 import SignIn from "./SignIn";
 
@@ -67,6 +68,8 @@ function Tracker({ session }: { session: Session }) {
   const [customServings, setCustomServings] = useState<Record<string, number>>({});
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState("");
+  const [addingTo, setAddingTo] = useState<string | null>(null); // meal whose add sheet is open
+  const closeSheet = useCallback(() => setAddingTo(null), []);
   const goalsTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const fail = (what: string) => (e: unknown) => {
@@ -226,31 +229,34 @@ function Tracker({ session }: { session: Session }) {
       )}
 
       <section>
-        <h2>Add food</h2>
-        <FoodSearch customServings={customServings} onCustomServing={changeCustomServing} onAdd={add} disabled={!ready} />
-      </section>
-
-      <section>
         <h2>Diary</h2>
-        {ready && entries.length === 0 && <p className="note">Nothing logged yet. Search for a food above to add it.</p>}
         {MEALS.map((m) => {
           const items = entries.filter((e) => e.meal === m);
-          if (!items.length) return null;
+          const mealKcal = Math.round(sumMacros(items).kcal);
           return (
-            <div key={m}>
-              <h3 className={`meal meal-${m.toLowerCase()}`}>{m}</h3>
-              <ul className="list">
-                {items.map((e) => (
-                  <li key={e.id}>
-                    <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit})` : `${e.grams} ${e.unit}`}, <MacroText m={e} /></small></div>
-                    <button className="ghost" onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}>Remove</button>
-                  </li>
-                ))}
-              </ul>
+            <div key={m} className="meal-group">
+              <div className="meal-head">
+                <h3 className={`meal meal-${m.toLowerCase()}`}>{m}{items.length > 0 && <span className="meal-kcal"> · {mealKcal} kcal</span>}</h3>
+                <button className="ghost add-btn" onClick={() => setAddingTo(m)} disabled={!ready} aria-label={`Add food to ${m}`}>+ add</button>
+              </div>
+              {items.length > 0 && (
+                <ul className="list">
+                  {items.map((e) => (
+                    <li key={e.id}>
+                      <div><b>{e.name}</b><small>{e.servings ? `${servingLabel(e.servings)} (${e.grams} ${e.unit})` : `${e.grams} ${e.unit}`}, <MacroText m={e} /></small></div>
+                      <button className="ghost" onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}
       </section>
+      {addingTo && (
+        <AddSheet meal={addingTo} customServings={customServings} onCustomServing={changeCustomServing}
+          onAdd={add} onClose={closeSheet} disabled={!ready} />
+      )}
     </main>
   );
 }

@@ -89,3 +89,31 @@ button.chip:hover:not(:disabled) { background:#fff; border-color:#cfc6b8; } butt
   .list li > button { flex-shrink:0; }
 }
 button.link { min-height:0; }
+/* Diary: every meal shows, each with its own add button. */
+.meal-group { padding:14px 0 4px; border-bottom:1px solid var(--line); } .meal-group:last-child { border-bottom:0; }
+.meal-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.meal-head h3 { margin:0; } .meal-kcal { color:var(--mute); font-weight:400; letter-spacing:0; text-transform:none; }
+button.add-btn { min-height:36px; padding:6px 14px; font-size:.85rem; color:var(--ink); }
+.meal-group .list { margin:4px 0 0; } .meal-group .list li:last-child { border-bottom:0; }
+/* Compact search results: one line each, tap to open the serving details. */
+.results { list-style:none; padding:0; margin:8px 0 0; }
+.results li { border-bottom:1px solid var(--line); }
+button.result { display:flex; width:100%; justify-content:space-between; align-items:center; gap:12px; padding:12px 2px; min-height:52px;
+  background:none; border:0; border-radius:0; color:var(--ink); text-align:left; text-transform:none; font-weight:400; white-space:normal; }
+button.result:hover:not(:disabled) { background:none; } .results li.open button.result { padding-bottom:6px; }
+.result-name { min-width:0; } .result-name b { font-weight:500; display:block; } .result-name small { display:block; color:var(--mute); font-size:.82rem; }
+.result-kcal { flex-shrink:0; color:var(--mute); font-size:.85rem; font-variant-numeric:tabular-nums; }
+.result-detail { display:grid; gap:4px; padding:0 2px 14px; }
+.result-detail small { color:var(--mute); font-size:.82rem; } .result-detail small.serving { color:#8f7861; }
+.result-detail .controls.amount { margin-top:8px; } .result-detail .controls.amount select { margin-left:auto; }
+button.add { margin-top:8px; width:100%; }
+/* Slide-up add sheet. */
+.sheet-backdrop { position:fixed; inset:0; z-index:10; background:rgba(29,28,26,.28); display:flex; align-items:flex-end; justify-content:center; animation:fade .2s ease; }
+.sheet { width:100%; max-width:640px; height:min(88vh, 760px); overflow-y:auto; overscroll-behavior:contain; background:var(--bg);
+  border-radius:20px 20px 0 0; padding:10px max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  box-shadow:0 -8px 30px rgba(29,28,26,.12); animation:slide-up .25s ease; }
+.sheet::before { content:""; display:block; width:36px; height:5px; border-radius:3px; background:var(--line); margin:0 auto 10px; }
+.sheet-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.sheet-head h2 { margin:0; } .sheet-head .link { font-size:.95rem; color:var(--ink); }
+@keyframes slide-up { from { transform:translateY(100%); } } @keyframes fade { from { opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .sheet, .sheet-backdrop { animation:none; } }
