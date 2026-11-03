@@ -1,4 +1,6 @@
-# Not MyFitnessPal
+# Xochiwell
+
+*Xochi* (SO-chee) comes from the Nahuatl *xōchitl*, "flower". Xochiwell is about blooming and feeling well.
 
 A small calorie and macro tracker with no ads, no paywall and no guilt trips. React + TypeScript + Vite.
 

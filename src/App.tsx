@@ -15,7 +15,7 @@ const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
 // The "want help setting goals?" offer appears once, after this many foods have been logged.
 const GOALS_OFFER_AFTER = 3;
 
-const Title = () => <h1><em>Not</em> MyFitnessPal</h1>;
+const Title = () => <h1><em>xochi</em>well</h1>;
 
 // A short, friendly line for today. Never mentions missed days, and being above a target is framed as normal.
 function greeting(entries: Entry[], total: Macros, goals: Macros, targetsOn: boolean) {

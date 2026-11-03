@@ -9,14 +9,14 @@ export default defineConfig({
         target: "https://search.openfoodfacts.org",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/off/, ""),
-        headers: { "User-Agent": "not-myfitnesspal/0.1 (calorie tracker)" },
+        headers: { "User-Agent": "xochiwell/0.1 (food log)" },
       },
       // Product details (serving sizes) only live in the main Open Food Facts API.
       "/api/products": {
         target: "https://world.openfoodfacts.org",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/products/, "/api/v2/search"),
-        headers: { "User-Agent": "not-myfitnesspal/0.1 (calorie tracker)" },
+        headers: { "User-Agent": "xochiwell/0.1 (food log)" },
       },
     },
   },

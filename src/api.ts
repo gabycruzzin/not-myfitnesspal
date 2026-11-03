@@ -20,7 +20,7 @@ const native = Capacitor.isNativePlatform();
 const SEARCH_URL = native ? "https://search.openfoodfacts.org/search" : "/api/off/search";
 const PRODUCTS_URL = native ? "https://world.openfoodfacts.org/api/v2/search" : "/api/products";
 // Open Food Facts asks apps to identify themselves; the proxy adds this header in the browser.
-const HEADERS: HeadersInit | undefined = native ? { "User-Agent": "not-myfitnesspal/0.1 (calorie tracker)" } : undefined;
+const HEADERS: HeadersInit | undefined = native ? { "User-Agent": "xochiwell/0.1 (food log)" } : undefined;
 
 const num = (v: unknown) => Math.round((typeof v === "number" ? v : Number(v) || 0) * 10) / 10;
 
