@@ -1,8 +1,8 @@
 import type { Macros } from "./api";
-import type { Activity, EnergyRange, Reason } from "./db";
+import type { Activity, Reason } from "./db";
 
 // Suggested starting goals, worked out from what someone already eats (their typical day) or, without one,
-// from their activity level and an optional energy range. No body measurements are used. Everything here is a starting point the user can edit.
+// from their activity level. No body measurements are used. Everything here is a starting point the user can edit.
 
 export const REASONS: [Reason, string][] = [
   ["understand", "Understand what I eat"],
@@ -20,23 +20,11 @@ export const ACTIVITIES: [Activity, string, string][] = [
   ["high", "Very active", "workouts most days or a physical job"],
 ];
 
-// Optional, so the starting numbers fit both smaller and larger energy needs without asking about bodies.
-export const RANGES: [EnergyRange, string, string][] = [
-  ["lower", "Lower", "common for most women"],
-  ["middle", "In between", "somewhere in the middle, or not sure"],
-  ["higher", "Higher", "common for most men"],
-];
-// Skipping the question uses the lower range: the app is mostly used by women, and starting lower is gentler.
-const DEFAULT_RANGE: EnergyRange = "lower";
-
-// Starting calories when there's no typical day to go on, roughly following US dietary guideline estimates.
-const BY_ACTIVITY: Record<EnergyRange, Record<Activity, number>> = {
-  lower: { low: 1700, moderate: 1900, high: 2200 },
-  middle: { low: 1950, moderate: 2200, high: 2500 },
-  higher: { low: 2200, moderate: 2500, high: 2800 },
-};
-// Everyday protein goals in grams; building strength adds STRENGTH_PROTEIN on top.
-const PROTEIN: Record<EnergyRange, number> = { lower: 100, middle: 115, higher: 130 };
+// Starting calories when there's no typical day to go on. Deliberately modest and the same for everyone;
+// people adjust from here as they learn what feels right.
+const BY_ACTIVITY: Record<Activity, number> = { low: 1800, moderate: 2000, high: 2200 };
+// Everyday protein goal in grams; building strength adds STRENGTH_PROTEIN on top.
+const PROTEIN = 100;
 const STRENGTH_PROTEIN = 20;
 // Never suggest fewer calories than this, whatever the inputs.
 export const CALORIE_FLOOR = 1400;
@@ -50,12 +38,11 @@ export const looksComplete = (items: number, kcal: number) => items >= 3 && kcal
 
 const round = (n: number, to: number) => Math.round(n / to) * to;
 
-export function suggestGoals(reasons: Reason[], activity: Activity | null, range: EnergyRange | null, typical: Macros | null) {
+export function suggestGoals(reasons: Reason[], activity: Activity | null, typical: Macros | null) {
   const has = (r: Reason) => reasons.includes(r);
   const notes: string[] = [];
-  const r = range ?? DEFAULT_RANGE;
 
-  const start = typical?.kcal ?? BY_ACTIVITY[r][activity ?? "moderate"];
+  const start = typical?.kcal ?? BY_ACTIVITY[activity ?? "moderate"];
   const from = typical ? "your typical day" : "a typical starting point";
   let kcal = start;
   if (has("lighter") && !has("fuel")) {
@@ -65,14 +52,13 @@ export function suggestGoals(reasons: Reason[], activity: Activity | null, range
     kcal = start * 1.1;
     notes.push(`About 10% more than ${from}, to help you fuel up.`);
   } else if (has("strength")) {
-    kcal = start * 1.05;
-    notes.push(`A touch more than ${from}, with extra protein to support building strength.`);
+    notes.push(`The same calories as ${from}, with extra protein to support building strength.`);
   } else {
     notes.push(typical ? "The same as your typical day, so you can see how it compares." : "A balanced everyday starting point.");
   }
   kcal = Math.max(CALORIE_FLOOR, round(kcal, 50));
 
-  let protein = PROTEIN[r] + (has("strength") ? STRENGTH_PROTEIN : 0);
+  let protein = PROTEIN + (has("strength") ? STRENGTH_PROTEIN : 0);
   if (typical) {
     if (protein > typical.protein + PROTEIN_STEP) {
       protein = round(typical.protein + PROTEIN_STEP, 5);

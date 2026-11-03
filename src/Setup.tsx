@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import type { Macros } from "./api";
-import type { Activity, EnergyRange, Profile, Reason, TypicalItem } from "./db";
+import type { Activity, Profile, Reason, TypicalItem } from "./db";
 import FoodSearch, { MEALS, MacroText, servingLabel, sumMacros } from "./FoodSearch";
-import { ACTIVITIES, RANGES, REASONS, looksComplete, suggestGoals } from "./goals";
+import { ACTIVITIES, REASONS, looksComplete, suggestGoals } from "./goals";
 
 export type SetupStep = "welcome" | "reasons" | "activity" | "typical" | "goals";
 const GUIDED: SetupStep[] = ["reasons", "activity", "typical", "goals"];
@@ -21,24 +21,23 @@ export default function Setup({ start, profile, customServings, onCustomServing,
   const [step, setStep] = useState<SetupStep>(start);
   const [reasons, setReasons] = useState<Reason[]>(profile.reasons);
   const [activity, setActivity] = useState<Activity | null>(profile.activity);
-  const [range, setRange] = useState<EnergyRange | null>(profile.energyRange);
   const [typical, setTypical] = useState<TypicalItem[]>(profile.typicalDay ?? []);
   const [draft, setDraft] = useState<Macros | null>(null);
 
   const firstRun = profile.setupChoice === null;
   const answers = (): Profile => ({
-    ...profile, setupChoice: profile.setupChoice ?? "goals", reasons, activity, energyRange: range, typicalDay: typical.length ? typical : null,
+    ...profile, setupChoice: profile.setupChoice ?? "goals", reasons, activity, typicalDay: typical.length ? typical : null,
   });
   const leave = () => onFinish(answers());
 
   const typicalTotal = sumMacros(typical);
   const typicalUsable = looksComplete(typical.length, typicalTotal.kcal);
-  const suggestion = suggestGoals(reasons, activity, range, typicalUsable ? typicalTotal : null);
+  const suggestion = suggestGoals(reasons, activity, typicalUsable ? typicalTotal : null);
   // Moving to the goals step fills in fresh suggestions from the typical day as it is at that moment.
   const toGoals = (items: TypicalItem[]) => {
     const total = sumMacros(items);
     setTypical(items);
-    setDraft(suggestGoals(reasons, activity, range, looksComplete(items.length, total.kcal) ? total : null).goals);
+    setDraft(suggestGoals(reasons, activity, looksComplete(items.length, total.kcal) ? total : null).goals);
     setStep("goals");
   };
   const next = () => setStep(GUIDED[GUIDED.indexOf(step) + 1]);
@@ -98,16 +97,7 @@ export default function Setup({ start, profile, customServings, onCustomServing,
             </button>
           ))}
         </div>
-        <h2 className="sub">which energy range should we start from?</h2>
-        <p className="lede">Optional. It only sets the starting numbers, which you can change anytime.</p>
-        <div className="chips">
-          {RANGES.map(([r, label, hint]) => (
-            <button key={r} className={`chip${range === r ? " on" : ""}`} aria-pressed={range === r} onClick={() => setRange(range === r ? null : r)}>
-              {label} <small>· {hint}</small>
-            </button>
-          ))}
-        </div>
-        {footer(<button onClick={next}>{activity || range ? "next" : "skip"}</button>)}
+        {footer(<button onClick={next}>{activity ? "next" : "skip"}</button>)}
       </section>
     );
   }
@@ -179,11 +169,11 @@ export default function Setup({ start, profile, customServings, onCustomServing,
         <p className="note notice">
           Your typical day looks a little light for a whole day. Anything missing? Drinks and snacks are easy to forget.{" "}
           <button className="link" onClick={() => setStep("typical")}>add more</button>
-          <br />For now, this starting point is based on your activity and energy range instead.
+          <br />For now, this starting point is based on your activity instead.
         </p>
       )}
       <h2>your starting point</h2>
-      <p className="lede">A suggestion, not a rule. Adjust anything, or skip numbers and just track.</p>
+      <p className="lede">A modest suggestion to start with. Adjust anything now or as you go, or skip numbers and just track.</p>
       {suggestion.notes.map((n) => <p key={n} className="note">{n}</p>)}
       <div className="goals">
         {labels.map(([k, label, unit]) => (

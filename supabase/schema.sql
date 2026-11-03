@@ -43,7 +43,6 @@ create table if not exists public.profiles (
   setup_choice text check (setup_choice in ('log', 'goals')),  -- null until the welcome screen is answered
   reasons text[] not null default '{}',                         -- what brings them here, e.g. 'energy', 'strength'
   activity text check (activity in ('low', 'moderate', 'high')),
-  energy_range text check (energy_range in ('lower', 'middle', 'higher')),  -- optional; sets starting calories without asking about bodies
   targets_on boolean not null default false,                    -- false = just track, no goal bars
   goals_offer_dismissed boolean not null default false,         -- the one-time "want help setting goals?" offer
   typical_day jsonb,                                            -- foods they listed as a normal day, kept apart from the diary

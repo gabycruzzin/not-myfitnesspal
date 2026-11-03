@@ -78,4 +78,3 @@ button.chip:hover:not(:disabled) { background:#fff; border-color:#cfc6b8; } butt
 .setup-footer > .link { text-transform:lowercase; font-size:.85rem; }
 .footer-actions { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
 .typical { margin-bottom:20px; } .typical-total { margin:14px 0 0; font-weight:500; }
-.setup h2.sub { margin-top:28px; } button.chip small { color:inherit; opacity:.65; font-size:.85em; }
