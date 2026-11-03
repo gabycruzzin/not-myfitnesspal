@@ -36,14 +36,59 @@ export async function removeEntry(id: string) {
   if (error) throw error;
 }
 
-export async function loadGoals(): Promise<Macros> {
+// null if this user has never saved goals.
+export async function loadGoals(): Promise<Macros | null> {
   const { data, error } = await db().from("goals").select("kcal, protein, carbs, fat").maybeSingle();
   if (error) throw error;
-  return data ?? DEFAULT_GOALS;
+  return data;
 }
 
 export async function saveGoals(goals: Macros) {
   const { error } = await db().from("goals").upsert({ ...goals, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function countEntries(): Promise<number> {
+  const { count, error } = await db().from("diary_entries").select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export type Reason = "understand" | "energy" | "strength" | "lighter" | "fuel" | "balanced" | "unsure";
+export type Activity = "low" | "moderate" | "high";
+export type EnergyRange = "lower" | "middle" | "higher";
+// A food in the "typical day" from setup. Stored on the profile, never counted in the diary.
+export type TypicalItem = NewEntry;
+export type Profile = {
+  setupChoice: "log" | "goals" | null; // null until the welcome screen is answered
+  reasons: Reason[];
+  activity: Activity | null;
+  energyRange: EnergyRange | null;
+  targetsOn: boolean; // false = just track, with no goal bars
+  goalsOfferDismissed: boolean;
+  typicalDay: TypicalItem[] | null;
+};
+export const NEW_PROFILE: Profile = {
+  setupChoice: null, reasons: [], activity: null, energyRange: null, targetsOn: false, goalsOfferDismissed: false, typicalDay: null,
+};
+const PROFILE_COLUMNS = "setup_choice, reasons, activity, energy_range, targets_on, goals_offer_dismissed, typical_day";
+
+// null if this user has no profile yet.
+export async function loadProfile(): Promise<Profile | null> {
+  const { data, error } = await db().from("profiles").select(PROFILE_COLUMNS).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    setupChoice: data.setup_choice, reasons: data.reasons ?? [], activity: data.activity, energyRange: data.energy_range, targetsOn: data.targets_on,
+    goalsOfferDismissed: data.goals_offer_dismissed, typicalDay: data.typical_day,
+  };
+}
+
+export async function saveProfile(p: Profile) {
+  const { error } = await db().from("profiles").upsert({
+    setup_choice: p.setupChoice, reasons: p.reasons, activity: p.activity, energy_range: p.energyRange, targets_on: p.targetsOn,
+    goals_offer_dismissed: p.goalsOfferDismissed, typical_day: p.typicalDay, updated_at: new Date().toISOString(),
+  });
   if (error) throw error;
 }
 

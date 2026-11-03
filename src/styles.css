@@ -1,7 +1,7 @@
 /* Minimal warm-neutral look: milky beige, near-black type and buttons, soft latte accents, lowercase headings. */
 :root {
   --bg:#f3efe9; --card:#faf8f4; --ink:#1d1c1a; --mute:#857e74; --line:#e4ded4; --track:#e9e3d9;
-  --accent:#1d1c1a; --accent-dark:#000; --latte:#c2ab92; --over:#b4473a;
+  --accent:#1d1c1a; --accent-dark:#000; --latte:#c2ab92;
   /* Soft pastel accents, one per nutrient. */
   --c-kcal:#d4ab84; --c-protein:#b3a3cf; --c-carbs:#e3c766; --c-fat:#9fb89a;
   /* Deeper versions of the macro colors, dark enough to read as text; calories stay plain ink as the headline number. */
@@ -30,7 +30,8 @@ section.totals { background:var(--card); border:1px solid var(--line); border-ra
 .row span { color:var(--mute); font-variant-numeric:tabular-nums; }
 .bar { height:6px; background:var(--track); border-radius:999px; overflow:hidden; margin-top:6px; }
 .bar i { display:block; height:100%; border-radius:999px; background:var(--c, var(--latte)); transition:width .3s ease; }
-.bar i.over { background:var(--over); } .over, .row span.over { color:var(--over); font-weight:500; }
+/* Going above a target is shown calmly, never in an alarm color. */
+.row em.above { font-style:normal; color:var(--mute); }
 .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .controls > input:first-child { flex:1 1 220px; } .controls input[type=number] { width:80px; }
 .controls.amount { margin-top:10px; color:var(--mute); } .controls.amount select { margin-left:auto; }
 input, select, button { font:inherit; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
@@ -48,7 +49,7 @@ button:disabled { opacity:.35; cursor:default; }
 .list b { font-weight:500; }
 .list small { display:block; color:var(--mute); font-size:.82rem; } .list small.serving { color:#8f7861; }
 .list input.inline { width:64px; padding:2px 8px; font-size:.82rem; text-align:center; border-radius:6px; } .list .hint { color:var(--mute); } .note { color:var(--mute); }
-.goals { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-top:10px; } .goals label { display:grid; gap:4px; font-size:.85rem; color:var(--mute); text-transform:lowercase; }
+.goals { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-top:10px; } .goals input { width:100%; min-width:0; } .goals label { display:grid; gap:4px; font-size:.85rem; color:var(--mute); text-transform:lowercase; }
 summary { cursor:pointer; color:var(--mute); font-size:.85rem; text-transform:lowercase; }
 .header-actions { display:flex; align-items:center; gap:8px; }
 button.link { background:none; border:0; padding:4px 2px; color:var(--mute); text-decoration:underline; text-underline-offset:3px; font-weight:400; }
@@ -58,3 +59,23 @@ button.link:hover:not(:disabled) { background:none; color:var(--ink); }
 .auth h2 { margin:0 0 4px; }
 .auth form { display:grid; gap:12px; margin:16px 0 8px; } .auth label { display:grid; gap:4px; font-size:.85rem; color:var(--mute); text-transform:lowercase; }
 code { font-size:.9em; background:var(--track); padding:1px 5px; border-radius:4px; }
+.greeting { margin:20px 0 0; color:var(--mute); }
+.goal-links { display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:12px; } .goal-links .link { font-size:.85rem; text-transform:lowercase; }
+.offer { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; }
+/* Setup */
+.setup { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px 20px; margin-top:24px; }
+.setup h2 { margin:0 0 6px; } .setup h2 + .lede, .setup .lede { color:var(--mute); margin:0 0 18px; }
+.setup .baseline { margin-bottom:24px; } .setup .baseline .lede { color:var(--ink); margin-bottom:6px; }
+.progress { margin:0 0 10px; font-size:.78rem; color:var(--mute); letter-spacing:.04em; }
+.choices { display:grid; gap:10px; }
+button.choice { display:grid; gap:2px; text-align:left; padding:14px 16px; background:#fff; color:var(--ink); border-color:var(--line); text-transform:none; white-space:normal; }
+button.choice:hover:not(:disabled) { background:#fff; border-color:#cfc6b8; } button.choice.on, button.choice.on:hover:not(:disabled) { border-color:var(--ink); background:#fff; }
+button.choice small { color:var(--mute); font-weight:400; font-size:.85rem; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+button.chip { background:#fff; color:var(--ink); border-color:var(--line); border-radius:999px; padding:8px 14px; text-transform:none; font-weight:400; }
+button.chip:hover:not(:disabled) { background:#fff; border-color:#cfc6b8; } button.chip.on, button.chip.on:hover:not(:disabled) { background:var(--ink); color:#faf8f4; border-color:var(--ink); }
+.setup-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-top:24px; }
+.setup-footer > .link { text-transform:lowercase; font-size:.85rem; }
+.footer-actions { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+.typical { margin-bottom:20px; } .typical-total { margin:14px 0 0; font-weight:500; }
+.setup h2.sub { margin-top:28px; } button.chip small { color:inherit; opacity:.65; font-size:.85em; }

@@ -1,40 +1,31 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { searchFoods, type Food, type Macros, type Serving } from "./api";
+import type { Macros } from "./api";
 import {
-  supabase, DEFAULT_GOALS, type Entry,
-  loadDay, addEntry, removeEntry, loadGoals, saveGoals, loadCustomServings, saveCustomServing, importLocalData,
+  supabase, DEFAULT_GOALS, NEW_PROFILE, type Entry, type NewEntry, type Profile,
+  loadDay, addEntry, removeEntry, countEntries, loadGoals, saveGoals, loadProfile, saveProfile,
+  loadCustomServings, saveCustomServing, importLocalData,
 } from "./db";
+import FoodSearch, { MEALS, MacroText, servingLabel, sumMacros } from "./FoodSearch";
+import Setup, { type SetupStep } from "./Setup";
 import SignIn from "./SignIn";
 
-const MEALS = ["Breakfast", "Lunch", "Dinner", "Snacks"];
-const SERVING_STEP = 0.5;
-const roundToStep = (n: number) => Math.max(SERVING_STEP, Math.round(n / SERVING_STEP) * SERVING_STEP);
-const servingLabel = (n: number) => `${n} serving${n === 1 ? "" : "s"}`;
-// Foods without a listed serving size use the size you set for them (remembered by food), or 100 g.
-const servingOf = (f: Food, custom: Record<string, number>): Serving => {
-  if (f.serving) return f.serving;
-  const amount = custom[f.id] ?? 100;
-  return { amount, unit: "g", label: `${amount} g` };
-};
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
-
-const scale = (m: Macros, grams: number): Macros => ({
-  kcal: Math.round((m.kcal * grams) / 100),
-  protein: Math.round((m.protein * grams) / 10) / 10,
-  carbs: Math.round((m.carbs * grams) / 10) / 10,
-  fat: Math.round((m.fat * grams) / 10) / 10,
-});
+// The "want help setting goals?" offer appears once, after this many foods have been logged.
+const GOALS_OFFER_AFTER = 3;
 
 const Title = () => <h1><em>Not</em> MyFitnessPal</h1>;
 
-// Macro numbers in each nutrient's color, e.g. "90 kcal, 16p 6c 0f".
-const MacroText = ({ m, kcalLabel = "kcal" }: { m: Macros; kcalLabel?: string }) => (
-  <>
-    <span className="m-kcal">{m.kcal} {kcalLabel}</span>,{" "}
-    <span className="m-protein">{m.protein}p</span> <span className="m-carbs">{m.carbs}c</span> <span className="m-fat">{m.fat}f</span>
-  </>
-);
+// A short, friendly line for today. Never mentions missed days, and being above a target is framed as normal.
+function greeting(entries: Entry[], total: Macros, goals: Macros, targetsOn: boolean) {
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? "Morning!" : hour < 18 ? "Hi there!" : "Evening!";
+  if (!entries.length) return `${hello} Log something whenever it suits you.`;
+  if (!targetsOn) return `Nice, ${entries.length} ${entries.length === 1 ? "thing" : "things"} logged today.`;
+  if (total.kcal > goals.kcal) return "You're a bit above today's target. Totally normal, it's the week that matters.";
+  if (goals.protein > 0) return `Nice going. You're at ${Math.round((total.protein / goals.protein) * 100)}% of your protein so far.`;
+  return "Nice going, keep it up.";
+}
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -69,16 +60,13 @@ export default function App() {
 function Tracker({ session }: { session: Session }) {
   const [date, setDate] = useState(today());
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entryCount, setEntryCount] = useState(0);
   const [goals, setGoals] = useState<Macros>(DEFAULT_GOALS);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [setupStart, setSetupStart] = useState<SetupStep | null>(null);
   const [customServings, setCustomServings] = useState<Record<string, number>>({});
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState("");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Food[]>([]);
-  const [status, setStatus] = useState("");
-  const [servings, setServings] = useState(1);
-  const [meal, setMeal] = useState(MEALS[0]);
-  const searchCtrl = useRef<AbortController>();
   const goalsTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const fail = (what: string) => (e: unknown) => {
@@ -86,14 +74,30 @@ function Tracker({ session }: { session: Session }) {
     setNotice(`Couldn't ${what}. Check your connection and try again.`);
   };
 
-  // On sign-in: bring over anything saved in this browser before accounts existed, then load goals and serving sizes.
+  // On sign-in: bring over anything saved in this browser before accounts existed, then load the account.
   useEffect(() => {
     (async () => {
       const imported = await importLocalData();
       if (imported) setNotice(`Imported ${imported} diary ${imported === 1 ? "entry" : "entries"} saved in this browser.`);
-      const [g, c] = await Promise.all([loadGoals(), loadCustomServings()]);
-      setGoals(g);
+      const [g, c, n] = await Promise.all([loadGoals(), loadCustomServings(), countEntries()]);
+      let p: Profile | null;
+      try {
+        p = await loadProfile();
+      } catch (e) {
+        // Most likely a migration in supabase/migrations hasn't been run yet; keep the app usable with goals as before.
+        console.error(e);
+        setNotice("Goal setup needs a database update. Run the newest files in supabase/migrations in the Supabase SQL editor.");
+        p = { ...NEW_PROFILE, setupChoice: "goals", targetsOn: true };
+      }
+      // People who used the app before setup existed already have goals, so skip the welcome screen for them.
+      if (!p && g) {
+        p = { ...NEW_PROFILE, setupChoice: "goals", targetsOn: true };
+        saveProfile(p).catch(console.error);
+      }
+      setGoals(g ?? DEFAULT_GOALS);
       setCustomServings(c);
+      setEntryCount(n);
+      setProfile(p ?? NEW_PROFILE);
       setReady(true);
     })().catch(fail("load your account"));
   }, [session.user.id]);
@@ -105,39 +109,26 @@ function Tracker({ session }: { session: Session }) {
     return () => { current = false; };
   }, [date, ready]);
 
-  const runSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (q.length < 2) return setStatus("Type at least 2 letters to search.");
-    searchCtrl.current?.abort();
-    const ctrl = (searchCtrl.current = new AbortController());
-    setStatus("Searching…");
-    try {
-      const foods = await searchFoods(q, ctrl.signal);
-      setResults(foods);
-      setStatus(foods.length ? "" : "No foods found. Try a simpler name.");
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") setStatus("Search failed. Check your connection and try again.");
-    }
-  };
+  const total = sumMacros(entries);
 
-  const total = entries.reduce<Macros>(
-    (a, e) => ({ kcal: a.kcal + e.kcal, protein: a.protein + e.protein, carbs: a.carbs + e.carbs, fat: a.fat + e.fat }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-
-  const add = (f: Food) => {
-    const { amount, unit } = servingOf(f, customServings);
-    const grams = Math.round(servings * amount);
+  const add = (entry: NewEntry) => {
     const day = date;
-    addEntry(day, { name: f.name, grams, unit, servings, meal, ...scale(f.per100g, grams) })
-      .then((saved) => { if (day === date) setEntries((list) => [...list, saved]); })
-      .catch(fail(`add ${f.name}`));
+    addEntry(day, entry)
+      .then((saved) => {
+        if (day === date) setEntries((list) => [...list, saved]);
+        setEntryCount((n) => n + 1);
+      })
+      .catch(fail(`add ${entry.name}`));
   };
   const remove = (id: string) => {
     const before = entries;
     setEntries(entries.filter((e) => e.id !== id));
-    removeEntry(id).catch((e) => { setEntries(before); fail("remove that entry")(e); });
+    setEntryCount((n) => n - 1);
+    removeEntry(id).catch((e) => { setEntries(before); setEntryCount((n) => n + 1); fail("remove that entry")(e); });
+  };
+  const changeCustomServing = (foodId: string, grams: number, save: boolean) => {
+    setCustomServings((c) => ({ ...c, [foodId]: grams }));
+    if (save) saveCustomServing(foodId, grams).catch(fail("save that serving size"));
   };
   // Goals save shortly after you stop typing, so each keystroke isn't a write.
   const changeGoal = (k: keyof Macros, value: number) => {
@@ -146,7 +137,33 @@ function Tracker({ session }: { session: Session }) {
     clearTimeout(goalsTimer.current);
     goalsTimer.current = setTimeout(() => saveGoals(next).catch(fail("save your goals")), 600);
   };
+  const updateProfile = (next: Profile) => {
+    setProfile(next);
+    saveProfile(next).catch(fail("save your settings"));
+  };
+  const finishSetup = (next: Profile, newGoals?: Macros) => {
+    updateProfile(next);
+    if (newGoals) {
+      setGoals(newGoals);
+      saveGoals(newGoals).catch(fail("save your goals"));
+    }
+    setSetupStart(null);
+  };
 
+  if (!profile) return <main><header><Title /></header><p className="note">Loading…</p></main>;
+
+  if (profile.setupChoice === null || setupStart) {
+    return (
+      <main>
+        <header><Title /></header>
+        <Setup start={setupStart ?? "welcome"} profile={profile} customServings={customServings}
+          onCustomServing={changeCustomServing} onFinish={finishSetup} />
+      </main>
+    );
+  }
+
+  const targetsOn = profile.targetsOn;
+  const showGoalsOffer = !targetsOn && !profile.goalsOfferDismissed && entryCount >= GOALS_OFFER_AFTER;
   const bars: [string, keyof Macros, string][] = [
     ["Calories", "kcal", "kcal"], ["Protein", "protein", "g"], ["Carbs", "carbs", "g"], ["Fat", "fat", "g"],
   ];
@@ -161,71 +178,56 @@ function Tracker({ session }: { session: Session }) {
         </div>
       </header>
       {notice && <p className="note notice" role="status">{notice} <button className="link" onClick={() => setNotice("")}>Dismiss</button></p>}
+      {date === today() && <p className="greeting">{greeting(entries, total, goals, targetsOn)}</p>}
 
       <section className="totals">
         {bars.map(([label, k, unit]) => {
-          const over = total[k] > goals[k];
+          if (!targetsOn) {
+            return (
+              <div key={k} className="stat" data-k={k}>
+                <div className="row"><b>{label}</b><span>{Math.round(total[k])} {unit}</span></div>
+              </div>
+            );
+          }
+          const above = total[k] > goals[k];
           return (
             <div key={k} className="stat" data-k={k}>
-              <div className="row"><b>{label}</b><span className={over ? "over" : ""}>{Math.round(total[k])} / {goals[k]} {unit}</span></div>
-              <div className="bar"><i className={over ? "over" : ""} style={{ width: `${Math.min(100, (total[k] / goals[k]) * 100)}%` }} /></div>
+              <div className="row"><b>{label}</b><span>{above && <em className="above">above target · </em>}{Math.round(total[k])} / {goals[k]} {unit}</span></div>
+              <div className="bar"><i style={{ width: `${Math.min(100, (total[k] / goals[k]) * 100)}%` }} /></div>
             </div>
           );
         })}
-        <details>
-          <summary>Edit daily goals</summary>
-          <div className="goals">
-            {bars.map(([label, k]) => (
-              <label key={k}>{label}
-                <input type="number" min={0} value={goals[k]} onChange={(e) => changeGoal(k, Number(e.target.value))} />
-              </label>
-            ))}
-          </div>
-        </details>
+        {targetsOn ? (
+          <details>
+            <summary>Edit daily goals</summary>
+            <div className="goals">
+              {bars.map(([label, k]) => (
+                <label key={k}>{label}
+                  <input type="number" min={0} value={goals[k]} onChange={(e) => changeGoal(k, Number(e.target.value))} />
+                </label>
+              ))}
+            </div>
+            <div className="goal-links">
+              <button className="link" onClick={() => setSetupStart("reasons")}>redo guided setup</button>
+              <button className="link" onClick={() => setSetupStart("typical")}>update my typical day</button>
+              <button className="link" onClick={() => updateProfile({ ...profile, targetsOn: false })}>turn off targets</button>
+            </div>
+          </details>
+        ) : (
+          <div className="goal-links"><button className="link" onClick={() => setSetupStart("reasons")}>set goals</button></div>
+        )}
       </section>
+      {showGoalsOffer && (
+        <p className="note notice offer">
+          Want help setting goals? It takes about 2 minutes.{" "}
+          <button className="link" onClick={() => setSetupStart("reasons")}>let's do it</button>{" "}
+          <button className="link" onClick={() => updateProfile({ ...profile, goalsOfferDismissed: true })}>no thanks</button>
+        </p>
+      )}
 
       <section>
         <h2>Add food</h2>
-        <form className="controls" onSubmit={runSearch} role="search">
-          <input placeholder="Search foods, e.g. greek yogurt" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search foods" />
-          <button type="submit">Search</button>
-        </form>
-        <div className="controls amount">
-          <div className="stepper">
-            <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings - SERVING_STEP))} disabled={servings <= SERVING_STEP} aria-label="Fewer servings">−</button>
-            <input type="number" min={SERVING_STEP} step={SERVING_STEP} value={servings} onChange={(e) => setServings(Number(e.target.value) || SERVING_STEP)} onBlur={() => setServings(roundToStep(servings))} aria-label="Servings" />
-            <button type="button" className="ghost" onClick={() => setServings(roundToStep(servings + SERVING_STEP))} aria-label="More servings">+</button>
-          </div>
-          <span>{servings === 1 ? "serving" : "servings"}</span>
-          <select value={meal} onChange={(e) => setMeal(e.target.value)} aria-label="Meal">
-            {MEALS.map((m) => <option key={m}>{m}</option>)}
-          </select>
-        </div>
-        {status && <p className="note">{status}</p>}
-        <ul className="list">
-          {results.map((f) => {
-            const s = servingOf(f, customServings);
-            const per = scale(f.per100g, s.amount);
-            return (
-              <li key={f.id}>
-                <div><b>{f.name}</b>{f.brand && <small> {f.brand}</small>}
-                  {f.serving ? (
-                    <small className="serving">1 serving = {s.label}</small>
-                  ) : (
-                    <small className="serving">
-                      1 serving ={" "}
-                      <input className="inline" type="number" min={1} value={s.amount} aria-label={`Serving size in grams for ${f.name}`}
-                        onChange={(e) => setCustomServings({ ...customServings, [f.id]: Math.max(1, Number(e.target.value) || 1) })}
-                        onBlur={() => saveCustomServing(f.id, s.amount).catch(fail("save that serving size"))} />{" "}
-                      g <span className="hint">(none listed, set your own)</span>
-                    </small>
-                  )}
-                  <small><MacroText m={per} kcalLabel="kcal per serving" /></small></div>
-                <button onClick={() => add(f)} disabled={!ready}>Add {servings} ({Math.round(servings * s.amount)} {s.unit})</button>
-              </li>
-            );
-          })}
-        </ul>
+        <FoodSearch customServings={customServings} onCustomServing={changeCustomServing} onAdd={add} disabled={!ready} />
       </section>
 
       <section>
