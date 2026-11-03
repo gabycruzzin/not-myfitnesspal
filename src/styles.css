@@ -18,12 +18,13 @@ h3.meal-dinner::before { background:var(--c-protein); } h3.meal-snacks::before {
 * { box-sizing: border-box; }
 body {
   margin:0; color:var(--ink); font:400 15px/1.55 Inter, system-ui, sans-serif;
-  background:var(--bg); min-height:100vh; -webkit-font-smoothing:antialiased;
+  background:var(--bg); min-height:100vh; -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
 }
-main { max-width:640px; margin:0 auto; padding:40px 16px 72px; }
-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+/* The safe-area insets keep content clear of the iPhone notch and home bar when it runs as an app. */
+main { max-width:640px; margin:0 auto; padding:max(40px, calc(env(safe-area-inset-top) + 16px)) max(16px, env(safe-area-inset-right)) max(72px, calc(env(safe-area-inset-bottom) + 40px)) max(16px, env(safe-area-inset-left)); }
+header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; }
 h1,h2,h3 { font-family:"Inter Tight", Inter, sans-serif; font-weight:500; margin:0; letter-spacing:-.02em; line-height:1.1; text-transform:lowercase; }
-h1 { font-size:2.6rem; letter-spacing:-.045em; } h1 em { font-style:normal; color:var(--latte); }
+h1 { font-size:clamp(2rem, 8vw, 2.6rem); letter-spacing:-.045em; } h1 em { font-style:normal; color:var(--latte); }
 h2 { font-size:1.35rem; margin:40px 0 14px; } h3 { font-size:.8rem; margin:20px 0 2px; color:var(--mute); font-weight:500; letter-spacing:.04em; }
 section.totals { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-top:24px; }
 .stat { margin-bottom:14px; } .row { display:flex; justify-content:space-between; font-size:.9rem; } .row b { font-weight:500; text-transform:lowercase; }
@@ -34,7 +35,7 @@ section.totals { background:var(--card); border:1px solid var(--line); border-ra
 .row em.above { font-style:normal; color:var(--mute); }
 .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .controls > input:first-child { flex:1 1 220px; } .controls input[type=number] { width:80px; }
 .controls.amount { margin-top:10px; color:var(--mute); } .controls.amount select { margin-left:auto; }
-input, select, button { font:inherit; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+input, select, button { font:inherit; min-height:44px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
 input:hover, select:hover { border-color:#cfc6b8; }
 button { background:var(--accent); color:#faf8f4; border-color:var(--accent); cursor:pointer; white-space:nowrap; font-weight:500; text-transform:lowercase; transition:background .15s; }
 button:hover:not(:disabled) { background:var(--accent-dark); border-color:var(--accent-dark); }
@@ -78,3 +79,13 @@ button.chip:hover:not(:disabled) { background:#fff; border-color:#cfc6b8; } butt
 .setup-footer > .link { text-transform:lowercase; font-size:.85rem; }
 .footer-actions { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
 .typical { margin-bottom:20px; } .typical-total { margin:14px 0 0; font-weight:500; }
+/* Phones: fields at 16px so iOS doesn't zoom in on focus, and the date and sign out get their own row under the title. */
+@media (max-width:520px) {
+  input, select { font-size:16px; }
+  .list input.inline { min-height:0; font-size:16px; }
+  .header-actions { width:100%; justify-content:space-between; }
+  section.totals, .setup { padding:18px 16px; }
+  .list li { align-items:flex-start; }
+  .list li > button { flex-shrink:0; }
+}
+button.link { min-height:0; }

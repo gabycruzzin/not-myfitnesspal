@@ -54,11 +54,13 @@ export default function FoodSearch({ customServings, onCustomServing, onAdd, dis
     e.preventDefault();
     const q = query.trim();
     if (q.length < 2) return setStatus("Type at least 2 letters to search.");
+    (document.activeElement as HTMLElement | null)?.blur(); // close the phone keyboard so the results are visible
     searchCtrl.current?.abort();
     const ctrl = (searchCtrl.current = new AbortController());
     setStatus("Searching…");
     try {
       const foods = await searchFoods(q, ctrl.signal);
+      if (ctrl.signal.aborted) return; // a newer search started (the app's native networking ignores aborts)
       setResults(foods);
       setStatus(foods.length ? "" : "No foods found. Try a simpler name.");
     } catch (e) {

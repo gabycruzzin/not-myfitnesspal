@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 export type Macros = { kcal: number; protein: number; carbs: number; fat: number };
 // serving: one serving as the label prints it (e.g. "1 container (150 g)"), plus its weight or volume.
 export type Serving = { amount: number; unit: string; label: string };
@@ -12,16 +14,24 @@ type OFFProduct = {
 
 type OFFServing = { code: string; serving_size?: string; serving_quantity?: number | string; serving_quantity_unit?: string };
 
+// In the iOS app, requests go straight to Open Food Facts through native networking (see capacitor.config.ts);
+// in a browser they go through the dev server's proxy in vite.config.ts.
+const native = Capacitor.isNativePlatform();
+const SEARCH_URL = native ? "https://search.openfoodfacts.org/search" : "/api/off/search";
+const PRODUCTS_URL = native ? "https://world.openfoodfacts.org/api/v2/search" : "/api/products";
+// Open Food Facts asks apps to identify themselves; the proxy adds this header in the browser.
+const HEADERS: HeadersInit | undefined = native ? { "User-Agent": "not-myfitnesspal/0.1 (calorie tracker)" } : undefined;
+
 const num = (v: unknown) => Math.round((typeof v === "number" ? v : Number(v) || 0) * 10) / 10;
 
-// Open Food Facts search API (free, no key), proxied through /api/off in vite.config.ts.
+// Open Food Facts search API (free, no key).
 export async function searchFoods(query: string, signal?: AbortSignal): Promise<Food[]> {
   const params = new URLSearchParams({
     q: query,
     page_size: "20",
     fields: "code,product_name,brands,nutriments",
   });
-  const res = await fetch(`/api/off/search?${params}`, { signal });
+  const res = await fetch(`${SEARCH_URL}?${params}`, { signal, headers: HEADERS });
   if (!res.ok) throw new Error(`Food search failed (${res.status})`);
   const data = (await res.json()) as { hits?: OFFProduct[] };
   const foods = (data.hits ?? [])
@@ -71,7 +81,7 @@ async function fetchServings(codes: string[], signal?: AbortSignal): Promise<Map
     for (let attempt = 0; attempt < 4; attempt++) {
       if (attempt) await wait(500 * attempt, signal);
       try {
-        const res = await fetch(`/api/products?${params}`, { signal });
+        const res = await fetch(`${PRODUCTS_URL}?${params}`, { signal, headers: HEADERS });
         if (!res.ok) continue;
         const data = (await res.json()) as { products?: OFFServing[] };
         for (const id of ids) cache[id] = null;

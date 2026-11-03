@@ -16,6 +16,15 @@ npm install
 npm run dev
 ```
 
+## Run it as an iOS app
+Needs Xcode. The iOS project in `ios/` wraps the built web app with [Capacitor](https://capacitorjs.com).
+```
+npm run build
+npx cap sync ios
+npx cap open ios
+```
+Then pick a simulator or your iPhone in Xcode and press Run. Repeat the first two commands after changing web code.
+
 ## How it works
 - Food data comes from [Open Food Facts](https://world.openfoodfacts.org) (free, no key). See `src/api.ts`.
   The dev server proxies its API (see `vite.config.ts`); a hosted build needs the same proxy.
