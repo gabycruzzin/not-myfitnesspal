@@ -27,6 +27,15 @@ npx cap open ios
 ```
 Then pick a simulator or your iPhone in Xcode and press Run. Repeat the first two commands after changing web code.
 
+### Upload a new TestFlight build
+1. Raise the build number (`CURRENT_PROJECT_VERSION` in `ios/App/App.xcodeproj/project.pbxproj`, or in Xcode under App → General → Build). Every upload needs a higher one.
+2. From `ios/App`:
+```
+xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath build-release/Xochiwell.xcarchive -allowProvisioningUpdates archive
+xcodebuild -exportArchive -archivePath build-release/Xochiwell.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build-release/export -allowProvisioningUpdates
+```
+Or in Xcode: Product → Archive, then Distribute App → App Store Connect. The build shows up under TestFlight in App Store Connect after Apple processes it.
+
 ## How it works
 - Food data comes from [Open Food Facts](https://world.openfoodfacts.org) (free, no key). See `src/api.ts`.
   The dev server proxies its API (see `vite.config.ts`); a hosted build needs the same proxy.
